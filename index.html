@@ -10,8 +10,8 @@
 <section class="drawer" id="drawer"><button id="close" style="float:right">✕</button><h2>城市控制台</h2><div class="actions"><button id="pause">⏸ 暂停</button><button id="weather">☀ 晴天</button><button id="speed">1× 速度</button><button id="capture">📷 截图</button><button id="share">↗ 分享</button><button id="preset">✦ 示范城</button><button id="reset">↺ 重置</button><button id="recenter">◎ 回到中心</button></div><p class="help">单指拖动旋转 · 双指缩放/平移 · 点击地块建造。桌面端可用鼠标旋转、滚轮缩放、右键平移。</p></section>
 <div id="toast" role="status"></div><div id="error"><h2>3D 引擎未能启动</h2><p id="errorMessage"></p><p>请检查网络连接及浏览器 WebGL 支持。原有城市存档未被删除。</p></div>
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import {OrbitControls} from 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'https://esm.sh/three@0.170.0';
+import {OrbitControls} from 'https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js';
 const N=17,KEY='little-city-v1',KINDS=['road','house','tower','tree','park','empty','shop','clock'];
 const rnd=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n)};
 const initial=()=>Array.from({length:N*N},(_,i)=>{const x=i%N,y=Math.floor(i/N),r=rnd(x,y);if(x%4===0||y%4===0)return 'road';const d=Math.hypot(x-8,y-8);if(d<3.4)return r<.6?'park':r<.8?'tree':'house';if(x>9&&y<8)return r<.62?'tower':r<.78?'shop':'tree';if(x<8&&y>8)return r<.6?'house':r<.8?'tree':'park';return r<.14?'tree':r<.26?'park':r<.7?'house':r<.94?'tower':'shop'});
