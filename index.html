@@ -282,7 +282,8 @@ canvas.addEventListener('lostpointercapture',e=>{if(erasePointer===e.pointerId)f
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{
  if(erasePointer!==null)finishErase();
  tool=b.dataset.tool;controls.enabled=tool!=='erase';
- canvas.style.touchAction=tool==='erase'?'none':'';
+ // OrbitControls requires touch-action:none in every mode; restoring '' allows browser gestures to steal drags.
+ canvas.style.touchAction='none';
  document.querySelectorAll('[data-tool]').forEach(el=>el.classList.toggle('active',el===b));
  if(tool==='erase')toast('拆除模式：按住并滑动即可连续拆除');
 });
