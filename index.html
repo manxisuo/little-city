@@ -5,19 +5,20 @@
 </style></head><body>
 <div id="scene"></div><header><h1>Little City ✦ <small style="font-size:10px">3D</small></h1><p class="sub">一座会呼吸的微型城市</p></header>
 <aside class="stats" id="stats">城市加载中…</aside>
-<nav class="dock" aria-label="城市建造"><button class="active" data-tool="view">✥ 探索</button><button data-tool="house">⌂ 住宅</button><button data-tool="tower">▥ 高楼</button><button data-tool="tree">♣ 树木</button><button data-tool="park">✿ 公园</button><button data-tool="shop">☕ 商店</button><button data-tool="clock">◷ 钟楼</button><button data-tool="road">═ 道路</button><button data-tool="water">≈ 河流</button><button data-tool="bridge">⌒ 桥梁</button><button data-tool="erase">⌫ 拆除</button></nav>
+<nav class="dock" aria-label="城市建造"><button class="active" data-tool="view">✥ 探索</button><button data-tool="house">⌂ 住宅</button><button data-tool="tower">▥ 高楼</button><button data-tool="tree">♣ 树木</button><button data-tool="park">✿ 公园</button><button data-tool="shop">☕ 商店</button><button data-tool="clock">◷ 钟楼</button><button data-tool="road">═ 道路</button><button data-tool="rail">▤ 铁轨</button><button data-tool="water">≈ 河流</button><button data-tool="bridge">⌒ 桥梁</button><button data-tool="erase">⌫ 拆除</button></nav>
 <div class="float"><button id="zoomIn" aria-label="放大">＋</button><button id="zoomOut" aria-label="缩小">−</button><button id="settings" aria-label="设置">☷</button></div>
 <section class="drawer" id="drawer"><button id="close" style="float:right">✕</button><h2>城市控制台</h2><div class="actions"><button id="pause">⏸ 暂停</button><button id="weather">☀ 晴天</button><button id="speed">1× 速度</button><button id="capture">📷 截图</button><button id="share">↗ 分享</button><button id="preset">✦ 示范城</button><button id="waterway">≈ 生成滨水景观</button><button id="reset">↺ 重置</button><button id="recenter">◎ 回到中心</button></div><p class="help">单指拖动旋转 · 双指缩放/平移 · 点击地块建造。桌面端可用鼠标旋转、滚轮缩放、右键平移。</p></section>
 <div id="toast" role="status"></div><div id="error"><h2>3D 引擎未能启动</h2><p id="errorMessage"></p><p>请检查网络连接及浏览器 WebGL 支持。原有城市存档未被删除。</p></div>
 <script type="module">
 import * as THREE from 'https://esm.sh/three@0.170.0';
 import {OrbitControls} from 'https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js';
-const N=17,KEY='little-city-v1',KINDS=['road','house','tower','tree','park','empty','shop','clock','water','bridge'];
+const N=17,KEY='little-city-v1',KINDS=['road','house','tower','tree','park','empty','shop','clock','water','bridge','rail'];
 const rnd=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n)};
 const initial=()=>Array.from({length:N*N},(_,i)=>{const x=i%N,y=Math.floor(i/N),r=rnd(x,y);if(x%4===0||y%4===0)return 'road';const d=Math.hypot(x-8,y-8);if(d<3.4)return r<.6?'park':r<.8?'tree':'house';if(x>9&&y<8)return r<.62?'tower':r<.78?'shop':'tree';if(x<8&&y>8)return r<.6?'house':r<.8?'tree':'park';return r<.14?'tree':r<.26?'park':r<.7?'house':r<.94?'tower':'shop'});
 let world;try{world=JSON.parse(localStorage.getItem(KEY))}catch{}if(!Array.isArray(world)||world.length!==N*N||!world.every(v=>KINDS.includes(v)))world=initial();
 try{const encoded=new URLSearchParams(location.hash.slice(1)).get('city');if(encoded){const data=JSON.parse(atob(encoded));if(Array.isArray(data)&&data.length===N*N&&data.every(v=>KINDS.includes(v)))world=data}}catch{}
 // Water is an ordinary persisted cell type; bridges are drivable road cells.
+const isRail=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='rail';
 const isWater=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='water';
 const isBridge=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='bridge';
 const isDrivable=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&['road','bridge'].includes(world[z*N+x]);
@@ -100,12 +101,66 @@ function waterSurface(g,x,z){
 function water(g,x,z){waterSurface(g,x,z)}
 function bridge(g,x,z){waterSurface(g,x,z);cube(g,x,.08,z,.98,.13,.94,'#c6bda9');const ix=Math.round(x+8),iz=Math.round(z+8);const alongX=isDrivable(ix-1,iz)||isDrivable(ix+1,iz);if(alongX){for(const side of [-.39,.39]){cube(g,x,.21,z+side,.94,.08,.06,'#e9dfc9');for(const dx of [-.34,0,.34])cube(g,x+dx,.08,z+side,.06,.32,.06,'#e7d9bf')}}else{for(const side of [-.39,.39]){cube(g,x+side,.21,z,.06,.08,.94,'#e9dfc9');for(const dz of [-.34,0,.34])cube(g,x+side,.08,z+dz,.06,.32,.06,'#e7d9bf')}}}
 function road(g,x,z){cube(g,x,0,z,1,.055,1,'#b7c0c4');const east=isDrivable(Math.round(x+8)+1,Math.round(z+8))||isDrivable(Math.round(x+8)-1,Math.round(z+8));const north=isDrivable(Math.round(x+8),Math.round(z+8)-1)||isDrivable(Math.round(x+8),Math.round(z+8)+1);if(east&&!north)cube(g,x,.055,z,.4,.009,.025,'#f9e9ba');if(north&&!east)cube(g,x,.055,z,.025,.009,.4,'#f9e9ba');if((x+z)%6===0)lamp(g,x-.38,z-.38);if((x+z)%9===0){cube(g,x+.35,.055,z+.35,.19,.18,.16,'#8aa2a4');cube(g,x+.35,.24,z+.35,.22,.045,.19,'#e2e8db')}}
-const cellGroups=[];function rebuild(){for(const child of [...root.children])root.remove(child);cellGroups.length=0;const base=cube(root,0,-.38,0,N+.8,.35,N+.8,'#8eae9c');base.receiveShadow=true;for(let z=0;z<N;z++)for(let x=0;x<N;x++){const type=world[z*N+x],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z);const g=new THREE.Group();root.add(g);g.userData.type=type;cellGroups.push(g);cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz)}buildTraffic()}
+// V7.6 railway tiles: sleepers, connected rails, and a lightweight procedural train.
+function rail(g,x,z){
+ const ix=Math.round(x+8),iz=Math.round(z+8);
+ const horizontal=isRail(ix-1,iz)||isRail(ix+1,iz);
+ const vertical=isRail(ix,iz-1)||isRail(ix,iz+1);
+ const alongX=horizontal&&!vertical||(horizontal&&vertical&&((isRail(ix-1,iz)?1:0)+(isRail(ix+1,iz)?1:0)>=2));
+ const axis=alongX?'x':'z';
+ cube(g,x,.005,z,1,.055,1,'#9baea1');
+ for(let i=-4;i<=4;i++){const offset=i*.11;if(axis==='x')cube(g,x+offset,.064,z,.065,.065,.68,'#9c8069');else cube(g,x,.064,z+offset,.68,.065,.065,'#9c8069')}
+ for(const side of [-.23,.23]){if(axis==='x')cube(g,x,.13,z+side,1,.065,.055,'#d5dbe0');else cube(g,x+side,.13,z,.055,.065,1,'#d5dbe0')}
+}
+let trains=[],trainGroup=new THREE.Group();scene.add(trainGroup);
+function railNeighbors(x,z){return [[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dz])=>({x:x+dx,z:z+dz})).filter(p=>isRail(p.x,p.z))}
+function trainPath(){
+ const visited=new Set(),components=[];
+ for(let z=0;z<N;z++)for(let x=0;x<N;x++){
+  if(!isRail(x,z)||visited.has(z*N+x))continue;
+  const stack=[{x,z}],component=[];visited.add(z*N+x);
+  while(stack.length){const p=stack.pop();component.push(p);for(const q of railNeighbors(p.x,p.z)){const id=q.z*N+q.x;if(!visited.has(id)){visited.add(id);stack.push(q)}}}
+  if(component.length>=2)components.push(component);
+ }
+ components.sort((a,b)=>b.length-a.length);
+ if(!components.length)return [];
+ const component=components[0],ends=component.filter(p=>railNeighbors(p.x,p.z).length===1);
+ const start=ends[0]||component[0],path=[start],seen=new Set([start.z*N+start.x]);
+ let current=start;
+ while(true){const choices=railNeighbors(current.x,current.z).filter(p=>!seen.has(p.z*N+p.x));if(!choices.length)break;current=choices[0];seen.add(current.z*N+current.x);path.push(current)}
+ return path;
+}
+function buildTrains(){
+ for(const child of [...trainGroup.children])trainGroup.remove(child);
+ trains=[];const path=trainPath();if(path.length<2)return;
+ const train=new THREE.Group(),engine=new THREE.Group();
+ cube(engine,0,.20,0,.54,.30,.40,'#e7a66f');
+ cube(engine,.02,.48,0,.29,.28,.34,'#f3e4c7');
+ cube(engine,.19,.43,0,.12,.11,.28,'#9ac4cf');
+ cube(engine,-.22,.48,0,.08,.20,.09,'#748b94');
+ for(const xx of [-.17,.17])for(const zz of [-.19,.19])ball(engine,xx,.12,zz,.09,'#465e68');
+ train.add(engine);trainGroup.add(train);
+ trains.push({mesh:train,path,progress:0,forward:true});
+}
+function updateTrains(dt){
+ for(const t of trains){
+  const path=t.path;if(path.length<2)continue;
+  t.progress+=Math.min(dt,80)*.00032;
+  if(t.progress>=path.length-1){t.progress=path.length-1;t.forward=false}
+  if(!t.forward)t.progress-=Math.min(dt,80)*.00064;
+  if(t.progress<=0){t.progress=0;t.forward=true}
+  const idx=Math.min(path.length-2,Math.floor(t.progress)),alpha=t.progress-idx;
+  const a=path[idx],b=path[idx+1],dx=b.x-a.x,dz=b.z-a.z;
+  t.mesh.position.set(a.x-8+dx*alpha,.13,a.z-8+dz*alpha);
+  t.mesh.rotation.y=Math.atan2(-dz,dx);
+ }
+}
+const cellGroups=[];function rebuild(){for(const child of [...root.children])root.remove(child);cellGroups.length=0;const base=cube(root,0,-.38,0,N+.8,.35,N+.8,'#8eae9c');base.receiveShadow=true;for(let z=0;z<N;z++)for(let x=0;x<N;x++){const type=world[z*N+x],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z);const g=new THREE.Group();root.add(g);g.userData.type=type;cellGroups.push(g);cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='rail')rail(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz)}buildTraffic();buildTrains()}
 let cars=[];const dirs=[[1,0],[0,1],[-1,0],[0,-1]];const isRoad=isDrivable;function options(x,z){return dirs.map(([dx,dz],dir)=>({x:x+dx,z:z+dz,dir})).filter(p=>isRoad(p.x,p.z))}
 function buildTraffic(){for(const c of [...moving.children])moving.remove(c);cars=[];const cells=[];for(let z=0;z<N;z++)for(let x=0;x<N;x++)if(isRoad(x,z)&&options(x,z).length)cells.push({x,z});for(let i=0;i<Math.min(24,Math.floor(cells.length/5));i++){const p=cells[Math.floor(rnd(i+5,i+12)*cells.length)];const g=new THREE.Group();cube(g,0,.11,0,.32,.17,.2,['#e8a27e','#79a9c4','#f2d28e'][i%3]);cube(g,.015,.28,0,.16,.1,.16,'#d8edf1');moving.add(g);cars.push({...p,dir:0,t:rnd(i,9),mesh:g,seed:i})}}
 function updateCars(dt,clock){for(const v of cars){v.t+=dt*.00032;while(v.t>=1){v.t-=1;let next=options(v.x,v.z);if(!next.length)break;const f=next.filter(n=>n.dir!==(v.dir+2)%4);if(f.length)next=f;const n=next[Math.floor(rnd(v.seed+v.x*13+Math.floor(clock/13000),v.z*17)*next.length)];v.x=n.x;v.z=n.z;v.dir=n.dir}const [dx,dz]=dirs[v.dir];v.mesh.position.set(v.x-(N-1)/2-dx*(1-v.t),.08,v.z-(N-1)/2-dz*(1-v.t));v.mesh.rotation.y=v.dir*Math.PI/2}}
-function save(x,z){try{localStorage.setItem(KEY,JSON.stringify(world))}catch{}if(Number.isInteger(x)&&Number.isInteger(z)){updateCell(x,z);buildTraffic()}else rebuild()}
-function updateCell(x,z){const idx=z*N+x,old=cellGroups[idx];if(old){root.remove(old)}const type=world[idx],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z),g=new THREE.Group();root.add(g);cellGroups[idx]=g;cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz);if(['road','bridge','water'].includes(type)||['road','bridge','water'].includes(old?.userData?.type)){for(const [dx,dz] of dirs){const nx=x+dx,nz=z+dz;if(nx>=0&&nx<N&&nz>=0&&nz<N&&['road','bridge','water'].includes(world[nz*N+nx])){const neighbor=cellGroups[nz*N+nx];if(neighbor){root.remove(neighbor);const ng=new THREE.Group();root.add(ng);cellGroups[nz*N+nx]=ng;const xx=nx-(N-1)/2,zz=nz-(N-1)/2;cube(ng,xx,-.19,zz,1,.09,1,'#b7c0c4');const nt=world[nz*N+nx];if(nt==='road')road(ng,xx,zz);else if(nt==='water')water(ng,xx,zz);else bridge(ng,xx,zz);ng.userData.type=nt}}}}g.userData.type=type}
+function save(x,z){try{localStorage.setItem(KEY,JSON.stringify(world))}catch{}if(Number.isInteger(x)&&Number.isInteger(z)){updateCell(x,z);buildTraffic();buildTrains()}else rebuild()}
+function updateCell(x,z){const idx=z*N+x,old=cellGroups[idx];if(old){root.remove(old)}const type=world[idx],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z),g=new THREE.Group();root.add(g);cellGroups[idx]=g;cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='rail')rail(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz);if(['road','bridge','water','rail'].includes(type)||['road','bridge','water','rail'].includes(old?.userData?.type)){for(const [dx,dz] of dirs){const nx=x+dx,nz=z+dz;if(nx>=0&&nx<N&&nz>=0&&nz<N&&['road','bridge','water','rail'].includes(world[nz*N+nx])){const neighbor=cellGroups[nz*N+nx];if(neighbor){root.remove(neighbor);const ng=new THREE.Group();root.add(ng);cellGroups[nz*N+nx]=ng;const xx=nx-(N-1)/2,zz=nz-(N-1)/2;cube(ng,xx,-.19,zz,1,.09,1,'#b7c0c4');const nt=world[nz*N+nx];if(nt==='road')road(ng,xx,zz);else if(nt==='water')water(ng,xx,zz);else if(nt==='rail')rail(ng,xx,zz);else bridge(ng,xx,zz);ng.userData.type=nt}}}}g.userData.type=type}
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2(),ground=new THREE.Plane(new THREE.Vector3(0,1,0),0);let down=null,tool='view',paused=false,speed=1,weather='sun',elapsed=0,last=0;
 const toast=(msg)=>{const el=document.querySelector('#toast');el.textContent=msg;setTimeout(()=>{if(el.textContent===msg)el.textContent=''},3000)};
 renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();document.querySelector('#errorMessage').textContent='图形上下文丢失，可能是设备显存不足。请刷新页面恢复。';document.querySelector('#error').classList.add('show')});renderer.domElement.addEventListener('webglcontextrestored',()=>location.reload());renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY}});
@@ -136,6 +191,6 @@ function reseedWeather(){for(let i=0;i<weatherCount;i++){const k=i*3;weatherPosi
 reseedWeather();
 function applyWeather(){precipitation.visible=weather!=='sun';precipitation.material=weather==='snow'?snowMaterial:rainMaterial;snowCover.visible=weather==='snow';weatherGeometry.attributes.position.needsUpdate=true}
 function animateWeather(dt){if(weather==='sun'||paused)return;const step=Math.min(dt,60)*.001;for(let i=0;i<weatherCount;i++){const k=i*3,v=weatherVelocity[i];weatherPositions[k+1]-=step*v*(weather==='rain'?7.5:1.5);weatherPositions[k]+=step*(weather==='rain'?.8:Math.sin(elapsed*.0006+i)*.28);if(weatherPositions[k+1]<.05){weatherPositions[k+1]=11+Math.random()*2;weatherPositions[k]=(Math.random()-.5)*19;weatherPositions[k+2]=(Math.random()-.5)*19}if(weatherPositions[k]>9.5)weatherPositions[k]=-9.5;if(weatherPositions[k]<-9.5)weatherPositions[k]=9.5}weatherGeometry.attributes.position.needsUpdate=true}
-const stats=document.querySelector('#stats');let lastStats=0;function frame(t){requestAnimationFrame(frame);if(!last)last=t;const dt=Math.min(80,t-last);last=t;if(!paused){elapsed+=dt*speed;updateCars(dt*speed,elapsed)}animateWeather(dt*speed);const day=(1+Math.cos(elapsed/65000*Math.PI*2))/2;waterUniforms.uTime.value=elapsed*.001;waterUniforms.uDay.value=day;sun.intensity=(1+2.1*day)*(weather==='sun'?1:weather==='rain'?.53:.72);hemi.intensity=(1.1+day)*(weather==='sun'?1:.82);scene.background.set(weather==='rain'?'#9aafbf':weather==='snow'?'#dbe6ee':day>.3?'#d4e7ed':'#8d9eb6');scene.fog.color.copy(scene.background);controls.update();renderer.render(scene,camera);if(t-lastStats>450){lastStats=t;stats.textContent=(weather==='rain'?'☂ ':weather==='snow'?'❄ ':'☀ ')+(day>.6?'白昼':day>.25?'黄昏':'夜晚')+' · '+world.filter(v=>['house','tower','shop','clock'].includes(v)).length+' 栋建筑'}}
+const stats=document.querySelector('#stats');let lastStats=0;function frame(t){requestAnimationFrame(frame);if(!last)last=t;const dt=Math.min(80,t-last);last=t;if(!paused){elapsed+=dt*speed;updateCars(dt*speed,elapsed);updateTrains(dt*speed)}animateWeather(dt*speed);const day=(1+Math.cos(elapsed/65000*Math.PI*2))/2;waterUniforms.uTime.value=elapsed*.001;waterUniforms.uDay.value=day;sun.intensity=(1+2.1*day)*(weather==='sun'?1:weather==='rain'?.53:.72);hemi.intensity=(1.1+day)*(weather==='sun'?1:.82);scene.background.set(weather==='rain'?'#9aafbf':weather==='snow'?'#dbe6ee':day>.3?'#d4e7ed':'#8d9eb6');scene.fog.color.copy(scene.background);controls.update();renderer.render(scene,camera);if(t-lastStats>450){lastStats=t;stats.textContent=(weather==='rain'?'☂ ':weather==='snow'?'❄ ':'☀ ')+(day>.6?'白昼':day>.25?'黄昏':'夜晚')+' · '+world.filter(v=>['house','tower','shop','clock'].includes(v)).length+' 栋建筑'}}
 requestAnimationFrame(frame);
 </script></body></html>
