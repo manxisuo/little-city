@@ -7,11 +7,12 @@
 <aside class="stats" id="stats">城市加载中…</aside>
 <nav class="dock" aria-label="城市建造"><button class="active" data-tool="view">✥ 探索</button><button data-tool="house">⌂ 住宅</button><button data-tool="tower">▥ 高楼</button><button data-tool="tree">♣ 树木</button><button data-tool="park">✿ 公园</button><button data-tool="hill">⛰ 山丘</button><button data-tool="shop">☕ 商店</button><button data-tool="clock">◷ 钟楼</button><button data-tool="road">═ 道路</button><button data-tool="rail">▤ 铁轨</button><button data-tool="water">≈ 河流</button><button data-tool="bridge">⌒ 桥梁</button><button data-tool="erase">⌫ 拆除</button></nav>
 <div class="float"><button id="zoomIn" aria-label="放大">＋</button><button id="zoomOut" aria-label="缩小">−</button><button id="settings" aria-label="设置">☷</button></div>
-<section class="drawer" id="drawer"><button id="close" style="float:right">✕</button><h2>城市控制台</h2><div class="actions"><button id="pause">⏸ 暂停</button><button id="weather">☀ 晴天</button><button id="speed">1× 速度</button><button id="capture">📷 截图</button><button id="share">↗ 分享</button><button id="preset">✦ 示范城</button><button id="waterway">≈ 生成滨水景观</button><button id="reset">↺ 重置</button><button id="recenter">◎ 回到中心</button></div><p class="help">单指拖动旋转 · 双指缩放/平移 · 点击地块建造。桌面端可用鼠标旋转、滚轮缩放、右键平移。</p></section>
+<section class="drawer" id="drawer"><button id="close" style="float:right">✕</button><h2>城市控制台</h2><div class="actions"><button id="pause">⏸ 暂停</button><button id="weather">☀ 晴天</button><button id="speed">1× 速度</button><button id="capture">📷 截图</button><button id="exportGLB">⬡ 导出 GLB</button><button id="share">↗ 分享</button><button id="preset">✦ 示范城</button><button id="waterway">≈ 生成滨水景观</button><button id="reset">↺ 重置</button><button id="recenter">◎ 回到中心</button></div><p class="help">单指拖动旋转 · 双指缩放/平移 · 点击地块建造。桌面端可用鼠标旋转、滚轮缩放、右键平移。</p></section>
 <div id="toast" role="status"></div><div id="error"><h2>3D 引擎未能启动</h2><p id="errorMessage"></p><p>请检查网络连接及浏览器 WebGL 支持。原有城市存档未被删除。</p></div>
 <script type="module">
 import * as THREE from 'https://esm.sh/three@0.170.0';
 import {OrbitControls} from 'https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js';
+import {GLTFExporter} from 'https://esm.sh/three@0.170.0/examples/jsm/exporters/GLTFExporter.js';
 const N=32,CENTER=(N-1)/2,OLD_N=17,OFFSET=7,KEY='little-city-v2',OLD_KEY='little-city-v1',KINDS=['road','house','tower','tree','park','empty','shop','clock','water','bridge','rail','hill'];
 const rnd=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n)};
 const valid=(a,n)=>Array.isArray(a)&&a.length===n*n&&a.every(v=>KINDS.includes(v));
@@ -290,7 +291,31 @@ document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{
 const drawer=document.querySelector('#drawer');document.querySelector('#settings').onclick=()=>drawer.classList.toggle('open');document.querySelector('#close').onclick=()=>drawer.classList.remove('open');document.querySelector('#zoomIn').onclick=()=>{camera.zoom=Math.min(3.4,camera.zoom*1.2);camera.updateProjectionMatrix()};document.querySelector('#zoomOut').onclick=()=>{camera.zoom=Math.max(.65,camera.zoom/1.2);camera.updateProjectionMatrix()};
 document.querySelector('#pause').onclick=e=>{paused=!paused;e.currentTarget.textContent=paused?'▶ 继续':'⏸ 暂停'};document.querySelector('#speed').onclick=e=>{speed=speed===1?2:speed===2?4:1;e.currentTarget.textContent=speed+'× 速度'};document.querySelector('#weather').onclick=e=>{weather=weather==='sun'?'rain':weather==='rain'?'snow':'sun';e.currentTarget.textContent=weather==='sun'?'☀ 晴天':weather==='rain'?'☂ 下雨':'❄ 下雪';applyWeather();toast(weather==='rain'?'雨天已开启':weather==='snow'?'雪天已开启':'已切换晴天')};
 document.querySelector('#recenter').onclick=()=>{controls.target.set(0,0,0);camera.position.set(30,34,34);camera.zoom=1;camera.updateProjectionMatrix();controls.update()};
-document.querySelector('#capture').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='little-city-3d.png';a.click()};
+const fileTimestamp=()=>{const d=new Date(),pad=n=>String(n).padStart(2,'0');return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'-'+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds())+'-'+String(d.getMilliseconds()).padStart(3,'0')};
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}
+document.querySelector('#exportGLB').onclick=async()=>{
+ const button=document.querySelector('#exportGLB');if(button.disabled)return;
+ button.disabled=true;button.textContent='⏳ 正在生成 GLB…';
+ try{
+  // Export geometry only, not camera, lights, weather particles or UI.
+  // ShaderMaterial is not portable to glTF; substitute a standard water surface.
+  const exportRoot=new THREE.Group();exportRoot.name='Little City';
+  const staticCity=root.clone(true);staticCity.name='City terrain and buildings';
+  const animatedCars=moving.clone(true);animatedCars.name='Vehicles (snapshot)';
+  exportRoot.add(staticCity,animatedCars);
+  const waterFallback=new THREE.MeshStandardMaterial({color:'#78c8db',roughness:.28,metalness:.05,side:THREE.DoubleSide});
+  exportRoot.traverse(o=>{
+   if(!o.isMesh)return;
+   if(o.material?.isShaderMaterial)o.material=waterFallback;
+  });
+  const exporter=new GLTFExporter();
+  const data=await exporter.parseAsync(exportRoot,{binary:true,onlyVisible:true,trs:false});
+  downloadBlob(new Blob([data],{type:'model/gltf-binary'}),'little-city-'+fileTimestamp()+'.glb');
+  toast('GLB 已生成，可在 Blender 中导入');
+ }catch(e){console.error('GLB export failed',e);toast('GLB 导出失败：'+(e?.message||'请检查内存'))}
+ finally{button.disabled=false;button.textContent='⬡ 导出 GLB'}
+};
+document.querySelector('#capture').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='little-city-'+fileTimestamp()+'.png';a.click()};
 document.querySelector('#share').onclick=async()=>{const url=location.href.split('#')[0]+'#city='+btoa(JSON.stringify(world));try{await navigator.clipboard.writeText(url);toast('分享链接已复制')}catch{prompt('复制分享链接',url)}};
 document.querySelector('#waterway').onclick=()=>{if(!confirm('沿城市中部生成一条河流与两座桥？会覆盖沿线地块。建议先用“分享”备份当前城市。'))return;for(let z=1;z<N-1;z++){const center=Math.floor(CENTER)+Math.round(Math.sin(z*.46)*1.4);for(let dx=-1;dx<=1;dx++){const x=center+dx;if(x<1||x>=N-1)continue;world[z*N+x]=(z===4||z===12)?'bridge':'water'}}save();toast('滨水景观已生成：可继续手动编辑河流和桥梁')};document.querySelector('#preset').onclick=()=>{if(confirm('生成新的 3D 示范城？将覆盖本地布局，建议先备份分享链接。')){world=initial();save();toast('示范城已生成')}};
 document.querySelector('#reset').onclick=()=>{if(confirm('重置城市？')){world=initial();save();history.replaceState(null,'',location.pathname+location.search)}};
