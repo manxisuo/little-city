@@ -5,14 +5,14 @@
 </style></head><body>
 <div id="scene"></div><header><h1>Little City ✦ <small style="font-size:10px">3D</small></h1><p class="sub">一座会呼吸的微型城市</p></header>
 <aside class="stats" id="stats">城市加载中…</aside>
-<nav class="dock" aria-label="城市建造"><button class="active" data-tool="view">✥ 探索</button><button data-tool="house">⌂ 住宅</button><button data-tool="tower">▥ 高楼</button><button data-tool="tree">♣ 树木</button><button data-tool="park">✿ 公园</button><button data-tool="shop">☕ 商店</button><button data-tool="clock">◷ 钟楼</button><button data-tool="road">═ 道路</button><button data-tool="rail">▤ 铁轨</button><button data-tool="water">≈ 河流</button><button data-tool="bridge">⌒ 桥梁</button><button data-tool="erase">⌫ 拆除</button></nav>
+<nav class="dock" aria-label="城市建造"><button class="active" data-tool="view">✥ 探索</button><button data-tool="house">⌂ 住宅</button><button data-tool="tower">▥ 高楼</button><button data-tool="tree">♣ 树木</button><button data-tool="park">✿ 公园</button><button data-tool="hill">⛰ 山丘</button><button data-tool="shop">☕ 商店</button><button data-tool="clock">◷ 钟楼</button><button data-tool="road">═ 道路</button><button data-tool="rail">▤ 铁轨</button><button data-tool="water">≈ 河流</button><button data-tool="bridge">⌒ 桥梁</button><button data-tool="erase">⌫ 拆除</button></nav>
 <div class="float"><button id="zoomIn" aria-label="放大">＋</button><button id="zoomOut" aria-label="缩小">−</button><button id="settings" aria-label="设置">☷</button></div>
 <section class="drawer" id="drawer"><button id="close" style="float:right">✕</button><h2>城市控制台</h2><div class="actions"><button id="pause">⏸ 暂停</button><button id="weather">☀ 晴天</button><button id="speed">1× 速度</button><button id="capture">📷 截图</button><button id="share">↗ 分享</button><button id="preset">✦ 示范城</button><button id="waterway">≈ 生成滨水景观</button><button id="reset">↺ 重置</button><button id="recenter">◎ 回到中心</button></div><p class="help">单指拖动旋转 · 双指缩放/平移 · 点击地块建造。桌面端可用鼠标旋转、滚轮缩放、右键平移。</p></section>
 <div id="toast" role="status"></div><div id="error"><h2>3D 引擎未能启动</h2><p id="errorMessage"></p><p>请检查网络连接及浏览器 WebGL 支持。原有城市存档未被删除。</p></div>
 <script type="module">
 import * as THREE from 'https://esm.sh/three@0.170.0';
 import {OrbitControls} from 'https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js';
-const N=32,CENTER=(N-1)/2,OLD_N=17,OFFSET=7,KEY='little-city-v2',OLD_KEY='little-city-v1',KINDS=['road','house','tower','tree','park','empty','shop','clock','water','bridge','rail'];
+const N=32,CENTER=(N-1)/2,OLD_N=17,OFFSET=7,KEY='little-city-v2',OLD_KEY='little-city-v1',KINDS=['road','house','tower','tree','park','empty','shop','clock','water','bridge','rail','hill'];
 const rnd=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n)};
 const valid=(a,n)=>Array.isArray(a)&&a.length===n*n&&a.every(v=>KINDS.includes(v));
 const oldCell=(x,y)=>{const r=rnd(x,y);if(x%4===0||y%4===0)return 'road';const d=Math.hypot(x-8,y-8);if(d<3.4)return r<.6?'park':r<.8?'tree':'house';if(x>9&&y<8)return r<.62?'tower':r<.78?'shop':'tree';if(x<8&&y>8)return r<.6?'house':r<.8?'tree':'park';return r<.14?'tree':r<.26?'park':r<.7?'house':r<.94?'tower':'shop'};
@@ -24,6 +24,7 @@ try{const encoded=new URLSearchParams(location.hash.slice(1)).get('city');if(enc
 // Preserve v1 unchanged for rollback. New edits only write v2.
 try{if(!valid(readJSON(KEY),N))localStorage.setItem(KEY,JSON.stringify(world))}catch{}
 // Water is an ordinary persisted cell type; bridges are drivable road cells.
+const isHill=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='hill';
 const isRail=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='rail';
 const isWater=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='water';
 const isBridge=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='bridge';
@@ -161,12 +162,60 @@ function updateTrains(dt){
   t.mesh.rotation.y=Math.atan2(-dz,dx);
  }
 }
-const cellGroups=[];function rebuild(){for(const child of [...root.children])root.remove(child);cellGroups.length=0;const base=cube(root,0,-.38,0,N+.8,.35,N+.8,'#8eae9c');base.receiveShadow=true;for(let z=0;z<N;z++)for(let x=0;x<N;x++){const type=world[z*N+x],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z);const g=new THREE.Group();root.add(g);g.userData.type=type;cellGroups.push(g);cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='rail')rail(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz)}buildTraffic();buildTrains()}
+// Smooth terrain tiles. A shared continuous height function ensures adjacent hills
+// have identical edge vertices; exposed edges taper smoothly to ground level.
+const HILL_SEGMENTS=10;
+const smooth01=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t)};
+function hillHeight(gx,gz){
+ let h=0;
+ const ix=Math.round(gx),iz=Math.round(gz);
+ for(let z=iz-2;z<=iz+2;z++)for(let x=ix-2;x<=ix+2;x++){
+  if(!isHill(x,z))continue;
+  const d=Math.hypot(gx-x,gz-z),w=Math.max(0,1-d/1.45);
+  h+=.68*w*w*(3-2*w);
+ }
+ // The outer boundary of a hill cluster must join flat terrain without a cliff.
+ const cx=Math.round(gx),cz=Math.round(gz);
+ let fade=1;
+ for(let z=cz-1;z<=cz+1;z++)for(let x=cx-1;x<=cx+1;x++){
+  if(isHill(x,z))continue;
+  const dx=Math.max(Math.abs(gx-x)-.5,0),dz=Math.max(Math.abs(gz-z)-.5,0);
+  const distance=Math.hypot(dx,dz);
+  fade=Math.min(fade,smooth01(distance/.27));
+ }
+ return Math.min(1.9,h)*fade;
+}
+function hill(g,x,z){
+ const ix=Math.round(x+CENTER),iz=Math.round(z+CENTER),pos=[],indices=[],colors=[];
+ const colorLow=new THREE.Color('#83ad72'),colorHigh=new THREE.Color('#b3c99a');
+ for(let j=0;j<=HILL_SEGMENTS;j++)for(let i=0;i<=HILL_SEGMENTS;i++){
+  const u=i/HILL_SEGMENTS-.5,v=j/HILL_SEGMENTS-.5;
+  const height=hillHeight(ix+u,iz+v);
+  pos.push(u,height+.002,v);
+  const c=colorLow.clone().lerp(colorHigh,Math.min(1,height/1.7));
+  colors.push(c.r,c.g,c.b);
+ }
+ for(let j=0;j<HILL_SEGMENTS;j++)for(let i=0;i<HILL_SEGMENTS;i++){
+  const k=j*(HILL_SEGMENTS+1)+i;
+  indices.push(k,k+HILL_SEGMENTS+1,k+1,k+1,k+HILL_SEGMENTS+1,k+HILL_SEGMENTS+2);
+ }
+ const geo=new THREE.BufferGeometry();
+ geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+ geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+ geo.setIndex(indices);geo.computeVertexNormals();
+ const mesh=new THREE.Mesh(geo,hillMaterial);mesh.position.set(x,-.145,z);
+ mesh.receiveShadow=true;mesh.castShadow=true;g.add(mesh);
+ // Dispose generated geometry when this tile is edited or regenerated.
+ g.userData.terrainGeometry=geo;
+}
+const hillMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,side:THREE.DoubleSide});
+function removeCellGroup(g){if(!g)return;g.userData.terrainGeometry?.dispose();root.remove(g)}
+const cellGroups=[];function rebuild(){for(const child of [...root.children])removeCellGroup(child);cellGroups.length=0;const base=cube(root,0,-.38,0,N+.8,.35,N+.8,'#8eae9c');base.receiveShadow=true;for(let z=0;z<N;z++)for(let x=0;x<N;x++){const type=world[z*N+x],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z);const g=new THREE.Group();root.add(g);g.userData.type=type;cellGroups.push(g);cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='rail')rail(g,px,pz);else if(type==='hill')hill(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz)}buildTraffic();buildTrains()}
 let cars=[];const dirs=[[1,0],[0,1],[-1,0],[0,-1]];const isRoad=isDrivable;function options(x,z){return dirs.map(([dx,dz],dir)=>({x:x+dx,z:z+dz,dir})).filter(p=>isRoad(p.x,p.z))}
 function buildTraffic(){for(const c of [...moving.children])moving.remove(c);cars=[];const cells=[];for(let z=0;z<N;z++)for(let x=0;x<N;x++)if(isRoad(x,z)&&options(x,z).length)cells.push({x,z});for(let i=0;i<Math.min(24,Math.floor(cells.length/5));i++){const p=cells[Math.floor(rnd(i+5,i+12)*cells.length)];const g=new THREE.Group();cube(g,0,.11,0,.32,.17,.2,['#e8a27e','#79a9c4','#f2d28e'][i%3]);cube(g,.015,.28,0,.16,.1,.16,'#d8edf1');moving.add(g);cars.push({...p,dir:0,t:rnd(i,9),mesh:g,seed:i})}}
 function updateCars(dt,clock){for(const v of cars){v.t+=dt*.00032;while(v.t>=1){v.t-=1;let next=options(v.x,v.z);if(!next.length)break;const f=next.filter(n=>n.dir!==(v.dir+2)%4);if(f.length)next=f;const n=next[Math.floor(rnd(v.seed+v.x*13+Math.floor(clock/13000),v.z*17)*next.length)];v.x=n.x;v.z=n.z;v.dir=n.dir}const [dx,dz]=dirs[v.dir];v.mesh.position.set(v.x-(N-1)/2-dx*(1-v.t),.08,v.z-(N-1)/2-dz*(1-v.t));v.mesh.rotation.y=v.dir*Math.PI/2}}
 function save(x,z){try{localStorage.setItem(KEY,JSON.stringify(world))}catch{}if(Number.isInteger(x)&&Number.isInteger(z)){updateCell(x,z);buildTraffic();buildTrains()}else rebuild()}
-function updateCell(x,z){const idx=z*N+x,old=cellGroups[idx];if(old){root.remove(old)}const type=world[idx],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z),g=new THREE.Group();root.add(g);cellGroups[idx]=g;cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='rail')rail(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz);if(['road','bridge','water','rail'].includes(type)||['road','bridge','water','rail'].includes(old?.userData?.type)){for(const [dx,dz] of dirs){const nx=x+dx,nz=z+dz;if(nx>=0&&nx<N&&nz>=0&&nz<N&&['road','bridge','water','rail'].includes(world[nz*N+nx])){const neighbor=cellGroups[nz*N+nx];if(neighbor){root.remove(neighbor);const ng=new THREE.Group();root.add(ng);cellGroups[nz*N+nx]=ng;const xx=nx-(N-1)/2,zz=nz-(N-1)/2;cube(ng,xx,-.19,zz,1,.09,1,'#b7c0c4');const nt=world[nz*N+nx];if(nt==='road')road(ng,xx,zz);else if(nt==='water')water(ng,xx,zz);else if(nt==='rail')rail(ng,xx,zz);else bridge(ng,xx,zz);ng.userData.type=nt}}}}g.userData.type=type}
+function updateCell(x,z){const idx=z*N+x,old=cellGroups[idx];if(old){removeCellGroup(old)}const type=world[idx],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z),g=new THREE.Group();root.add(g);cellGroups[idx]=g;cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='rail')rail(g,px,pz);else if(type==='hill')hill(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz);if(['road','bridge','water','rail','hill'].includes(type)||['road','bridge','water','rail','hill'].includes(old?.userData?.type)){for(const [dx,dz] of dirs){const nx=x+dx,nz=z+dz;if(nx>=0&&nx<N&&nz>=0&&nz<N&&['road','bridge','water','rail','hill'].includes(world[nz*N+nx])){const neighbor=cellGroups[nz*N+nx];if(neighbor){removeCellGroup(neighbor);const ng=new THREE.Group();root.add(ng);cellGroups[nz*N+nx]=ng;const xx=nx-(N-1)/2,zz=nz-(N-1)/2;cube(ng,xx,-.19,zz,1,.09,1,'#b7c0c4');const nt=world[nz*N+nx];if(nt==='road')road(ng,xx,zz);else if(nt==='water')water(ng,xx,zz);else if(nt==='rail')rail(ng,xx,zz);else if(nt==='hill')hill(ng,xx,zz);else bridge(ng,xx,zz);ng.userData.type=nt}}}}g.userData.type=type}
 const ray=new THREE.Raycaster(),pointer=new THREE.Vector2(),ground=new THREE.Plane(new THREE.Vector3(0,1,0),0);let down=null,tool='view',paused=false,speed=1,weather='sun',elapsed=0,last=0;
 const toast=(msg)=>{const el=document.querySelector('#toast');el.textContent=msg;setTimeout(()=>{if(el.textContent===msg)el.textContent=''},3000)};
 renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();document.querySelector('#errorMessage').textContent='图形上下文丢失，可能是设备显存不足。请刷新页面恢复。';document.querySelector('#error').classList.add('show')});renderer.domElement.addEventListener('webglcontextrestored',()=>location.reload());renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY}});
