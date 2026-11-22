@@ -57,16 +57,48 @@ const waterMaterial=new THREE.ShaderMaterial({
  float band=sin(p.x*11.0+p.y*19.0-t*2.8+sin(p.x*5.0-t)*.6);
  float gleam=pow(max(0.0,band),10.0)*(.6+.4*max(0.0,ripples));
  float foam=smoothstep(.72,.95,sin(p.x*26.0+p.y*8.0-t*2.1))*smoothstep(.4,.9,sin(p.y*20.0-p.x*13.0+t*1.6));
- vec3 color=mix(vec3(.35,.76,.95),vec3(.63,.89,1.0),undulate*.65+.15);
- color+=ripples*.055;
+ vec3 color=mix(vec3(.68,.88,.97),vec3(.82,.95,1.0),undulate*.65+.15);
+ color+=ripples*.025;
  color=mix(color,vec3(1.0,1.0,1.0),clamp(gleam*.95+foam*.20,0.0,.9));
  gl_FragColor=vec4(color,1.0);
  }`
 });
-const waterPlane=geometry('waterPlane',()=>new THREE.PlaneGeometry(.985,.985));
-function waterSurface(g,x,z){const mesh=new THREE.Mesh(waterPlane,waterMaterial);mesh.rotation.x=-Math.PI/2;mesh.position.set(x,.005,z);mesh.renderOrder=2;g.add(mesh)}
-function water(g,x,z){cube(g,x,-.12,z,.98,.045,.98,'#8bd5f3');waterSurface(g,x,z);const edge='#d9d7ba';const ix=Math.round(x+8),iz=Math.round(z+8);if(!isWater(ix-1,iz)&&!isBridge(ix-1,iz))cube(g,x-.48,-.065,z,.045,.10,.98,edge);if(!isWater(ix+1,iz)&&!isBridge(ix+1,iz))cube(g,x+.48,-.065,z,.045,.10,.98,edge);if(!isWater(ix,iz-1)&&!isBridge(ix,iz-1))cube(g,x,-.065,z-.48,.98,.10,.045,edge);if(!isWater(ix,iz+1)&&!isBridge(ix,iz+1))cube(g,x,-.065,z+.48,.98,.10,.045,edge)}
-function bridge(g,x,z){cube(g,x,-.12,z,.98,.045,.98,'#8bd5f3');waterSurface(g,x,z);cube(g,x,.08,z,.98,.13,.94,'#c6bda9');const ix=Math.round(x+8),iz=Math.round(z+8);const alongX=isDrivable(ix-1,iz)||isDrivable(ix+1,iz);if(alongX){for(const side of [-.39,.39]){cube(g,x,.21,z+side,.94,.08,.06,'#e9dfc9');for(const dx of [-.34,0,.34])cube(g,x+dx,.08,z+side,.06,.32,.06,'#e7d9bf')}}else{for(const side of [-.39,.39]){cube(g,x+side,.21,z,.06,.08,.94,'#e9dfc9');for(const dz of [-.34,0,.34])cube(g,x+side,.08,z+dz,.06,.32,.06,'#e7d9bf')}}}
+// River geometry: shared 16 shoreline variants, smooth insets only at exposed banks.
+// Adjacent water/bridge tiles meet at full tile width; no visible square seams.
+const riverShapes=new Map();
+function riverShape(mask){
+ if(riverShapes.has(mask))return riverShapes.get(mask);
+ const segments=12,positions=[],uv=[],indices=[];
+ const left=!!(mask&1),right=!!(mask&2),top=!!(mask&4),bottom=!!(mask&8);
+ for(let j=0;j<=segments;j++)for(let i=0;i<=segments;i++){
+  const u=i/segments,v=j/segments;
+  const wavex=.14+.045*Math.sin(v*8.1+1.7)+.018*Math.sin(v*19.2);
+  const wavez=.14+.045*Math.sin(u*7.4+2.2)+.018*Math.sin(u*17.6);
+  const x=-.5+u*(1-(left?0:wavex)-(right?0:wavex))+(left?0:wavex);
+  const z=-.5+v*(1-(top?0:wavez)-(bottom?0:wavez))+(top?0:wavez);
+  positions.push(x,0,z);uv.push(u,v);
+ }
+ for(let j=0;j<segments;j++)for(let i=0;i<segments;i++){
+  const k=j*(segments+1)+i;indices.push(k,k+segments+1,k+1,k+1,k+segments+1,k+segments+2);
+ }
+ const geo=new THREE.BufferGeometry();
+ geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+ geo.setIndex(indices);geo.computeVertexNormals();riverShapes.set(mask,geo);return geo;
+}
+function riverMask(ix,iz){
+ return (isWater(ix-1,iz)||isBridge(ix-1,iz)?1:0)
+ |(isWater(ix+1,iz)||isBridge(ix+1,iz)?2:0)
+ |(isWater(ix,iz-1)||isBridge(ix,iz-1)?4:0)
+ |(isWater(ix,iz+1)||isBridge(ix,iz+1)?8:0);
+}
+function waterSurface(g,x,z){
+ const ix=Math.round(x+8),iz=Math.round(z+8);
+ const mesh=new THREE.Mesh(riverShape(riverMask(ix,iz)),waterMaterial);
+ mesh.position.set(x,.018,z);mesh.renderOrder=2;g.add(mesh);
+}
+function water(g,x,z){waterSurface(g,x,z)}
+function bridge(g,x,z){waterSurface(g,x,z);cube(g,x,.08,z,.98,.13,.94,'#c6bda9');const ix=Math.round(x+8),iz=Math.round(z+8);const alongX=isDrivable(ix-1,iz)||isDrivable(ix+1,iz);if(alongX){for(const side of [-.39,.39]){cube(g,x,.21,z+side,.94,.08,.06,'#e9dfc9');for(const dx of [-.34,0,.34])cube(g,x+dx,.08,z+side,.06,.32,.06,'#e7d9bf')}}else{for(const side of [-.39,.39]){cube(g,x+side,.21,z,.06,.08,.94,'#e9dfc9');for(const dz of [-.34,0,.34])cube(g,x+side,.08,z+dz,.06,.32,.06,'#e7d9bf')}}}
 function road(g,x,z){cube(g,x,0,z,1,.055,1,'#b7c0c4');const east=isDrivable(Math.round(x+8)+1,Math.round(z+8))||isDrivable(Math.round(x+8)-1,Math.round(z+8));const north=isDrivable(Math.round(x+8),Math.round(z+8)-1)||isDrivable(Math.round(x+8),Math.round(z+8)+1);if(east&&!north)cube(g,x,.055,z,.4,.009,.025,'#f9e9ba');if(north&&!east)cube(g,x,.055,z,.025,.009,.4,'#f9e9ba');if((x+z)%6===0)lamp(g,x-.38,z-.38);if((x+z)%9===0){cube(g,x+.35,.055,z+.35,.19,.18,.16,'#8aa2a4');cube(g,x+.35,.24,z+.35,.22,.045,.19,'#e2e8db')}}
 const cellGroups=[];function rebuild(){for(const child of [...root.children])root.remove(child);cellGroups.length=0;const base=cube(root,0,-.38,0,N+.8,.35,N+.8,'#8eae9c');base.receiveShadow=true;for(let z=0;z<N;z++)for(let x=0;x<N;x++){const type=world[z*N+x],px=x-(N-1)/2,pz=z-(N-1)/2,r=rnd(x,z);const g=new THREE.Group();root.add(g);g.userData.type=type;cellGroups.push(g);cube(g,px,-.19,pz,1,.09,1,type==='road'?'#b7c0c4':(x+z)%3===0?'#a6caa6':'#98c4a2');if(type==='road')road(g,px,pz);else if(type==='water')water(g,px,pz);else if(type==='bridge')bridge(g,px,pz);else if(type==='tree'){plant(g,px,pz,1+r*.35);if(r>.5)planter(g,px+.34,pz+.33)}else if(type==='park')park(g,px,pz,r);else if(type==='house')house(g,px,pz,r);else if(type==='tower')tower(g,px,pz,r);else if(type==='shop')house(g,px,pz,r,true);else if(type==='clock')clockTower(g,px,pz)}buildTraffic()}
 let cars=[];const dirs=[[1,0],[0,1],[-1,0],[0,-1]];const isRoad=isDrivable;function options(x,z){return dirs.map(([dx,dz],dir)=>({x:x+dx,z:z+dz,dir})).filter(p=>isRoad(p.x,p.z))}
