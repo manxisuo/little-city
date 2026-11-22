@@ -12,21 +12,27 @@
 <script type="module">
 import * as THREE from 'https://esm.sh/three@0.170.0';
 import {OrbitControls} from 'https://esm.sh/three@0.170.0/examples/jsm/controls/OrbitControls.js';
-const N=17,KEY='little-city-v1',KINDS=['road','house','tower','tree','park','empty','shop','clock','water','bridge','rail'];
+const N=32,CENTER=(N-1)/2,OLD_N=17,OFFSET=7,KEY='little-city-v2',OLD_KEY='little-city-v1',KINDS=['road','house','tower','tree','park','empty','shop','clock','water','bridge','rail'];
 const rnd=(x,y)=>{const n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n)};
-const initial=()=>Array.from({length:N*N},(_,i)=>{const x=i%N,y=Math.floor(i/N),r=rnd(x,y);if(x%4===0||y%4===0)return 'road';const d=Math.hypot(x-8,y-8);if(d<3.4)return r<.6?'park':r<.8?'tree':'house';if(x>9&&y<8)return r<.62?'tower':r<.78?'shop':'tree';if(x<8&&y>8)return r<.6?'house':r<.8?'tree':'park';return r<.14?'tree':r<.26?'park':r<.7?'house':r<.94?'tower':'shop'});
-let world;try{world=JSON.parse(localStorage.getItem(KEY))}catch{}if(!Array.isArray(world)||world.length!==N*N||!world.every(v=>KINDS.includes(v)))world=initial();
-try{const encoded=new URLSearchParams(location.hash.slice(1)).get('city');if(encoded){const data=JSON.parse(atob(encoded));if(Array.isArray(data)&&data.length===N*N&&data.every(v=>KINDS.includes(v)))world=data}}catch{}
+const valid=(a,n)=>Array.isArray(a)&&a.length===n*n&&a.every(v=>KINDS.includes(v));
+const oldCell=(x,y)=>{const r=rnd(x,y);if(x%4===0||y%4===0)return 'road';const d=Math.hypot(x-8,y-8);if(d<3.4)return r<.6?'park':r<.8?'tree':'house';if(x>9&&y<8)return r<.62?'tower':r<.78?'shop':'tree';if(x<8&&y>8)return r<.6?'house':r<.8?'tree':'park';return r<.14?'tree':r<.26?'park':r<.7?'house':r<.94?'tower':'shop'};
+const initial=()=>Array.from({length:N*N},(_,i)=>{const x=i%N,y=Math.floor(i/N),ox=x-OFFSET,oy=y-OFFSET;if(ox>=0&&ox<OLD_N&&oy>=0&&oy<OLD_N)return oldCell(ox,oy);const r=rnd(x,y);if(x%4===OFFSET%4||y%4===OFFSET%4)return 'road';return r<.12?'park':r<.3?'tree':r<.65?'house':r<.82?'shop':r<.96?'tower':'empty'});
+function migrate(a){if(valid(a,N))return a.slice();if(!valid(a,OLD_N))return null;const out=initial();for(let y=0;y<OLD_N;y++)for(let x=0;x<OLD_N;x++)out[(y+OFFSET)*N+x+OFFSET]=a[y*OLD_N+x];return out}
+function readJSON(k){try{return JSON.parse(localStorage.getItem(k))}catch{return null}}
+let world=migrate(readJSON(KEY))||migrate(readJSON(OLD_KEY))||initial();
+try{const encoded=new URLSearchParams(location.hash.slice(1)).get('city');if(encoded){const imported=migrate(JSON.parse(atob(encoded)));if(imported)world=imported}}catch{}
+// Preserve v1 unchanged for rollback. New edits only write v2.
+try{if(!valid(readJSON(KEY),N))localStorage.setItem(KEY,JSON.stringify(world))}catch{}
 // Water is an ordinary persisted cell type; bridges are drivable road cells.
 const isRail=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='rail';
 const isWater=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='water';
 const isBridge=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&world[z*N+x]==='bridge';
 const isDrivable=(x,z)=>x>=0&&z>=0&&x<N&&z<N&&['road','bridge'].includes(world[z*N+x]);
-const scene=new THREE.Scene();scene.background=new THREE.Color('#d4e7ed');scene.fog=new THREE.Fog('#d4e7ed',27,65);
-const camera=new THREE.OrthographicCamera(-13,13,13,-13,.1,120);camera.position.set(21,25,23);
+const scene=new THREE.Scene();scene.background=new THREE.Color('#d4e7ed');scene.fog=new THREE.Fog('#d4e7ed',40,95);
+const camera=new THREE.OrthographicCamera(-13,13,13,-13,.1,120);camera.position.set(30,34,34);
 const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,powerPreference:'default'});const mobile=matchMedia('(pointer:coarse)').matches;renderer.setPixelRatio(Math.min(devicePixelRatio||1,mobile?1.1:1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.4;document.querySelector('#scene').append(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.08;controls.minPolarAngle=.25;controls.maxPolarAngle=1.35;controls.minZoom=.65;controls.maxZoom=3.4;controls.target.set(0,0,0);controls.enablePan=true;controls.update();
-const hemi=new THREE.HemisphereLight('#e8f7ff','#90a68d',2.1);scene.add(hemi);const sun=new THREE.DirectionalLight('#fff2d6',3.1);sun.position.set(-12,24,9);sun.castShadow=true;sun.shadow.mapSize.set(mobile?512:1024,mobile?512:1024);sun.shadow.camera.left=-17;sun.shadow.camera.right=17;sun.shadow.camera.top=17;sun.shadow.camera.bottom=-17;sun.shadow.normalBias=.02;scene.add(sun);
+const hemi=new THREE.HemisphereLight('#e8f7ff','#90a68d',2.1);scene.add(hemi);const sun=new THREE.DirectionalLight('#fff2d6',3.1);sun.position.set(-12,24,9);sun.castShadow=true;sun.shadow.mapSize.set(mobile?512:1024,mobile?512:1024);sun.shadow.camera.left=-22;sun.shadow.camera.right=22;sun.shadow.camera.top=22;sun.shadow.camera.bottom=-22;sun.shadow.normalBias=.02;scene.add(sun);
 const root=new THREE.Group();scene.add(root);const moving=new THREE.Group();scene.add(moving);
 const materialCache=new Map(),geometryCache=new Map();function geometry(key,create){if(!geometryCache.has(key))geometryCache.set(key,create());return geometryCache.get(key)}function mat(color,emissive=false){const key=color+'|'+emissive;if(!materialCache.has(key))materialCache.set(key,new THREE.MeshStandardMaterial({color,roughness:.83,metalness:0,emissive:emissive?color:'#000000',emissiveIntensity:emissive?.25:0}));return materialCache.get(key)}
 function cube(parent,x,y,z,w,h,d,color){const mesh=new THREE.Mesh(geometry('unitBox',()=>new THREE.BoxGeometry(1,1,1)),mat(color));mesh.scale.set(w,h,d);mesh.position.set(x,y+h/2,z);mesh.castShadow=h>.16;mesh.receiveShadow=true;parent.add(mesh);return mesh}
@@ -94,16 +100,16 @@ function riverMask(ix,iz){
  |(isWater(ix,iz+1)||isBridge(ix,iz+1)?8:0);
 }
 function waterSurface(g,x,z){
- const ix=Math.round(x+8),iz=Math.round(z+8);
+ const ix=Math.round(x+CENTER),iz=Math.round(z+CENTER);
  const mesh=new THREE.Mesh(riverShape(riverMask(ix,iz)),waterMaterial);
  mesh.position.set(x,.018,z);mesh.renderOrder=2;g.add(mesh);
 }
 function water(g,x,z){waterSurface(g,x,z)}
-function bridge(g,x,z){waterSurface(g,x,z);cube(g,x,.08,z,.98,.13,.94,'#c6bda9');const ix=Math.round(x+8),iz=Math.round(z+8);const alongX=isDrivable(ix-1,iz)||isDrivable(ix+1,iz);if(alongX){for(const side of [-.39,.39]){cube(g,x,.21,z+side,.94,.08,.06,'#e9dfc9');for(const dx of [-.34,0,.34])cube(g,x+dx,.08,z+side,.06,.32,.06,'#e7d9bf')}}else{for(const side of [-.39,.39]){cube(g,x+side,.21,z,.06,.08,.94,'#e9dfc9');for(const dz of [-.34,0,.34])cube(g,x+side,.08,z+dz,.06,.32,.06,'#e7d9bf')}}}
-function road(g,x,z){cube(g,x,0,z,1,.055,1,'#b7c0c4');const east=isDrivable(Math.round(x+8)+1,Math.round(z+8))||isDrivable(Math.round(x+8)-1,Math.round(z+8));const north=isDrivable(Math.round(x+8),Math.round(z+8)-1)||isDrivable(Math.round(x+8),Math.round(z+8)+1);if(east&&!north)cube(g,x,.055,z,.4,.009,.025,'#f9e9ba');if(north&&!east)cube(g,x,.055,z,.025,.009,.4,'#f9e9ba');if((x+z)%6===0)lamp(g,x-.38,z-.38);if((x+z)%9===0){cube(g,x+.35,.055,z+.35,.19,.18,.16,'#8aa2a4');cube(g,x+.35,.24,z+.35,.22,.045,.19,'#e2e8db')}}
+function bridge(g,x,z){waterSurface(g,x,z);cube(g,x,.08,z,.98,.13,.94,'#c6bda9');const ix=Math.round(x+CENTER),iz=Math.round(z+CENTER);const alongX=isDrivable(ix-1,iz)||isDrivable(ix+1,iz);if(alongX){for(const side of [-.39,.39]){cube(g,x,.21,z+side,.94,.08,.06,'#e9dfc9');for(const dx of [-.34,0,.34])cube(g,x+dx,.08,z+side,.06,.32,.06,'#e7d9bf')}}else{for(const side of [-.39,.39]){cube(g,x+side,.21,z,.06,.08,.94,'#e9dfc9');for(const dz of [-.34,0,.34])cube(g,x+side,.08,z+dz,.06,.32,.06,'#e7d9bf')}}}
+function road(g,x,z){cube(g,x,0,z,1,.055,1,'#b7c0c4');const east=isDrivable(Math.round(x+CENTER)+1,Math.round(z+CENTER))||isDrivable(Math.round(x+CENTER)-1,Math.round(z+CENTER));const north=isDrivable(Math.round(x+CENTER),Math.round(z+CENTER)-1)||isDrivable(Math.round(x+CENTER),Math.round(z+CENTER)+1);if(east&&!north)cube(g,x,.055,z,.4,.009,.025,'#f9e9ba');if(north&&!east)cube(g,x,.055,z,.025,.009,.4,'#f9e9ba');if((x+z)%6===0)lamp(g,x-.38,z-.38);if((x+z)%9===0){cube(g,x+.35,.055,z+.35,.19,.18,.16,'#8aa2a4');cube(g,x+.35,.24,z+.35,.22,.045,.19,'#e2e8db')}}
 // V7.6 railway tiles: sleepers, connected rails, and a lightweight procedural train.
 function rail(g,x,z){
- const ix=Math.round(x+8),iz=Math.round(z+8);
+ const ix=Math.round(x+CENTER),iz=Math.round(z+CENTER);
  const horizontal=isRail(ix-1,iz)||isRail(ix+1,iz);
  const vertical=isRail(ix,iz-1)||isRail(ix,iz+1);
  const alongX=horizontal&&!vertical||(horizontal&&vertical&&((isRail(ix-1,iz)?1:0)+(isRail(ix+1,iz)?1:0)>=2));
@@ -151,7 +157,7 @@ function updateTrains(dt){
   if(t.progress<=0){t.progress=0;t.forward=true}
   const idx=Math.min(path.length-2,Math.floor(t.progress)),alpha=t.progress-idx;
   const a=path[idx],b=path[idx+1],dx=b.x-a.x,dz=b.z-a.z;
-  t.mesh.position.set(a.x-8+dx*alpha,.13,a.z-8+dz*alpha);
+  t.mesh.position.set(a.x-CENTER+dx*alpha,.13,a.z-CENTER+dz*alpha);
   t.mesh.rotation.y=Math.atan2(-dz,dx);
  }
 }
@@ -168,12 +174,12 @@ renderer.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clie
 document.querySelectorAll('[data-tool]').forEach(b=>b.onclick=()=>{tool=b.dataset.tool;document.querySelectorAll('[data-tool]').forEach(el=>el.classList.toggle('active',el===b))});
 const drawer=document.querySelector('#drawer');document.querySelector('#settings').onclick=()=>drawer.classList.toggle('open');document.querySelector('#close').onclick=()=>drawer.classList.remove('open');document.querySelector('#zoomIn').onclick=()=>{camera.zoom=Math.min(3.4,camera.zoom*1.2);camera.updateProjectionMatrix()};document.querySelector('#zoomOut').onclick=()=>{camera.zoom=Math.max(.65,camera.zoom/1.2);camera.updateProjectionMatrix()};
 document.querySelector('#pause').onclick=e=>{paused=!paused;e.currentTarget.textContent=paused?'▶ 继续':'⏸ 暂停'};document.querySelector('#speed').onclick=e=>{speed=speed===1?2:speed===2?4:1;e.currentTarget.textContent=speed+'× 速度'};document.querySelector('#weather').onclick=e=>{weather=weather==='sun'?'rain':weather==='rain'?'snow':'sun';e.currentTarget.textContent=weather==='sun'?'☀ 晴天':weather==='rain'?'☂ 下雨':'❄ 下雪';applyWeather();toast(weather==='rain'?'雨天已开启':weather==='snow'?'雪天已开启':'已切换晴天')};
-document.querySelector('#recenter').onclick=()=>{controls.target.set(0,0,0);camera.position.set(21,25,23);camera.zoom=1;camera.updateProjectionMatrix();controls.update()};
+document.querySelector('#recenter').onclick=()=>{controls.target.set(0,0,0);camera.position.set(30,34,34);camera.zoom=1;camera.updateProjectionMatrix();controls.update()};
 document.querySelector('#capture').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='little-city-3d.png';a.click()};
 document.querySelector('#share').onclick=async()=>{const url=location.href.split('#')[0]+'#city='+btoa(JSON.stringify(world));try{await navigator.clipboard.writeText(url);toast('分享链接已复制')}catch{prompt('复制分享链接',url)}};
-document.querySelector('#waterway').onclick=()=>{if(!confirm('沿城市中部生成一条河流与两座桥？会覆盖沿线地块。建议先用“分享”备份当前城市。'))return;for(let z=1;z<N-1;z++){const center=8+Math.round(Math.sin(z*.46)*1.4);for(let dx=-1;dx<=1;dx++){const x=center+dx;if(x<1||x>=N-1)continue;world[z*N+x]=(z===4||z===12)?'bridge':'water'}}save();toast('滨水景观已生成：可继续手动编辑河流和桥梁')};document.querySelector('#preset').onclick=()=>{if(confirm('生成新的 3D 示范城？将覆盖本地布局，建议先备份分享链接。')){world=initial();save();toast('示范城已生成')}};
+document.querySelector('#waterway').onclick=()=>{if(!confirm('沿城市中部生成一条河流与两座桥？会覆盖沿线地块。建议先用“分享”备份当前城市。'))return;for(let z=1;z<N-1;z++){const center=Math.floor(CENTER)+Math.round(Math.sin(z*.46)*1.4);for(let dx=-1;dx<=1;dx++){const x=center+dx;if(x<1||x>=N-1)continue;world[z*N+x]=(z===4||z===12)?'bridge':'water'}}save();toast('滨水景观已生成：可继续手动编辑河流和桥梁')};document.querySelector('#preset').onclick=()=>{if(confirm('生成新的 3D 示范城？将覆盖本地布局，建议先备份分享链接。')){world=initial();save();toast('示范城已生成')}};
 document.querySelector('#reset').onclick=()=>{if(confirm('重置城市？')){world=initial();save();history.replaceState(null,'',location.pathname+location.search)}};
-function resize(){const w=innerWidth,h=innerHeight,aspect=w/h,span=12;camera.left=-span*aspect;camera.right=span*aspect;camera.top=span;camera.bottom=-span;camera.updateProjectionMatrix();renderer.setSize(w,h)}addEventListener('resize',resize);resize();rebuild();
+function resize(){const w=innerWidth,h=innerHeight,aspect=w/h,span=22;camera.left=-span*aspect;camera.right=span*aspect;camera.top=span;camera.bottom=-span;camera.updateProjectionMatrix();renderer.setSize(w,h)}addEventListener('resize',resize);resize();rebuild();
 // V7.5: bounded 3D precipitation, reusable buffers and snow overlay.
 const weatherCount=mobile?260:650;
 const weatherPositions=new Float32Array(weatherCount*3);
@@ -187,10 +193,10 @@ precipitation.frustumCulled=false;precipitation.visible=false;scene.add(precipit
 const snowCover=new THREE.Group();scene.add(snowCover);snowCover.visible=false;
 const snowGround=new THREE.Mesh(geometry('snowGround',()=>new THREE.PlaneGeometry(N+.45,N+.45)),new THREE.MeshBasicMaterial({color:'#f3f8fc',transparent:true,opacity:.28,depthWrite:false}));
 snowGround.rotation.x=-Math.PI/2;snowGround.position.y=-.125;snowCover.add(snowGround);
-function reseedWeather(){for(let i=0;i<weatherCount;i++){const k=i*3;weatherPositions[k]=(Math.random()-.5)*19;weatherPositions[k+1]=Math.random()*12+.4;weatherPositions[k+2]=(Math.random()-.5)*19;weatherVelocity[i]=.65+Math.random()*.85}weatherGeometry.attributes.position.needsUpdate=true}
+function reseedWeather(){for(let i=0;i<weatherCount;i++){const k=i*3;weatherPositions[k]=(Math.random()-.5)*32;weatherPositions[k+1]=Math.random()*12+.4;weatherPositions[k+2]=(Math.random()-.5)*32;weatherVelocity[i]=.65+Math.random()*.85}weatherGeometry.attributes.position.needsUpdate=true}
 reseedWeather();
 function applyWeather(){precipitation.visible=weather!=='sun';precipitation.material=weather==='snow'?snowMaterial:rainMaterial;snowCover.visible=weather==='snow';weatherGeometry.attributes.position.needsUpdate=true}
-function animateWeather(dt){if(weather==='sun'||paused)return;const step=Math.min(dt,60)*.001;for(let i=0;i<weatherCount;i++){const k=i*3,v=weatherVelocity[i];weatherPositions[k+1]-=step*v*(weather==='rain'?7.5:1.5);weatherPositions[k]+=step*(weather==='rain'?.8:Math.sin(elapsed*.0006+i)*.28);if(weatherPositions[k+1]<.05){weatherPositions[k+1]=11+Math.random()*2;weatherPositions[k]=(Math.random()-.5)*19;weatherPositions[k+2]=(Math.random()-.5)*19}if(weatherPositions[k]>9.5)weatherPositions[k]=-9.5;if(weatherPositions[k]<-9.5)weatherPositions[k]=9.5}weatherGeometry.attributes.position.needsUpdate=true}
+function animateWeather(dt){if(weather==='sun'||paused)return;const step=Math.min(dt,60)*.001;for(let i=0;i<weatherCount;i++){const k=i*3,v=weatherVelocity[i];weatherPositions[k+1]-=step*v*(weather==='rain'?7.5:1.5);weatherPositions[k]+=step*(weather==='rain'?.8:Math.sin(elapsed*.0006+i)*.28);if(weatherPositions[k+1]<.05){weatherPositions[k+1]=11+Math.random()*2;weatherPositions[k]=(Math.random()-.5)*32;weatherPositions[k+2]=(Math.random()-.5)*32}if(weatherPositions[k]>16)weatherPositions[k]=-16;if(weatherPositions[k]<-16)weatherPositions[k]=16}weatherGeometry.attributes.position.needsUpdate=true}
 const stats=document.querySelector('#stats');let lastStats=0;function frame(t){requestAnimationFrame(frame);if(!last)last=t;const dt=Math.min(80,t-last);last=t;if(!paused){elapsed+=dt*speed;updateCars(dt*speed,elapsed);updateTrains(dt*speed)}animateWeather(dt*speed);const day=(1+Math.cos(elapsed/65000*Math.PI*2))/2;waterUniforms.uTime.value=elapsed*.001;waterUniforms.uDay.value=day;sun.intensity=(1+2.1*day)*(weather==='sun'?1:weather==='rain'?.53:.72);hemi.intensity=(1.1+day)*(weather==='sun'?1:.82);scene.background.set(weather==='rain'?'#9aafbf':weather==='snow'?'#dbe6ee':day>.3?'#d4e7ed':'#8d9eb6');scene.fog.color.copy(scene.background);controls.update();renderer.render(scene,camera);if(t-lastStats>450){lastStats=t;stats.textContent=(weather==='rain'?'☂ ':weather==='snow'?'❄ ':'☀ ')+(day>.6?'白昼':day>.25?'黄昏':'夜晚')+' · '+world.filter(v=>['house','tower','shop','clock'].includes(v)).length+' 栋建筑'}}
 requestAnimationFrame(frame);
 </script></body></html>
